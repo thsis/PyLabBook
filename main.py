@@ -1,51 +1,11 @@
 import os
-import numpy as np
-from datetime import date
-from datetime import datetime
+import random
 import tkinter as tk
 from tkinter import ttk
-from dataclasses import dataclass
+from datetime import date
 from tkcalendar import DateEntry
 
-
-@dataclass
-class Record:
-    created_at: (str, datetime)
-    id: int
-    state: str
-    action: str
-
-    def __post_init__(self):
-        self.created_at = datetime.strptime(self.created_at, "%Y-%m-%d")
-
-
-@dataclass
-class Culture(Record):
-    mushroom: str
-    medium: str
-
-    def __str__(self):
-        return f"{self.created_at.strftime('%Y%m%d')}C{str(self.id).rjust(3, '0')}"
-
-
-@dataclass
-class Bag(Record):
-    starter: str
-    total_yield: float
-
-    def __str__(self):
-        return f"{self.created_at.strftime('%Y%m%d')}B{str(self.id).rjust(3, '0')}"
-
-
-@dataclass
-class GrainSpawn(Record):
-    container: int
-
-    def __str__(self):
-        return f"{self.created_at.strftime('%Y%m%d')}GS{str(self.id).rjust(3, '0')}"
-
-
-APP_NAME = "PyLabBook"
+from datastructures import Bag, Culture, GrainSpawn
 
 
 def create_popup(parent):
@@ -62,7 +22,9 @@ def create_popup(parent):
 
 
 class CreatePanel(tk.Frame):
-    def __init__(self, parent):
+    def __init__(self, parent, padx=(20, 5), pady=(20, 5)):
+        super().__init__(parent)
+
         self.buttons = {
             "Bag": {"row": 0, "col": 0, "command": self.create_bag},
             "Grain Spawn": {"row": 0, "col": 1, "command": self.create_grain_spawn},
@@ -72,17 +34,16 @@ class CreatePanel(tk.Frame):
 
         self.parent = parent
 
-        tk.Frame.__init__(self, self.parent)
         self.frame = ttk.Frame(self.parent)
         self.label_frame = ttk.LabelFrame(self.frame, text="Create New")
         self.populate()
-        self.label_frame.grid(row=0, column=0, sticky="nesw", padx=(20, 5), pady=(20, 5))
+        self.label_frame.grid(row=0, column=0, sticky="nesw", padx=padx, pady=pady)
         self.frame.grid(row=0, column=0, sticky="nesw")
 
     def populate(self):
         for text, instructions in self.buttons.items():
             button = ttk.Button(self.label_frame, text=text, command=instructions["command"])
-            button.grid(row=instructions["row"], column=instructions["col"], padx=(5, 5), pady=(5, 5))
+            button.grid(row=instructions["row"], column=instructions["col"], padx=5, pady=5)
 
     def create_bag(self, *args, **kwargs):
         popup = create_popup(self.parent)
@@ -106,7 +67,6 @@ class CreatePanel(tk.Frame):
         b = ttk.Button(popup, text="Okay", command=foo)
         b.grid(row=2, column=0, columnspan=2)
 
-
     def create_grain_spawn(*args, **kwargs):
         # todo: implement me!
         raise NotImplementedError
@@ -121,17 +81,19 @@ class CreatePanel(tk.Frame):
 
 
 class InspectPanel(tk.Frame):
-    def __init__(self, parent, title, row, column):
+    def __init__(self, parent, title, width=None):
+        super().__init__(parent)
         self.entries = []
-        tk.Frame.__init__(self, parent)
-        self.content = ttk.Frame(parent)
-        self.label_frame = ttk.LabelFrame(self.content, text=title)
-        self.label_frame.grid(row=0, column=0, pady=(20, 5), padx=20, sticky="w")
-        self.canvas = tk.Canvas(self.label_frame, borderwidth=0, width=530, scrollregion=(-492, 4, 4, 1270))
+
+        self.label_frame = ttk.LabelFrame(self, text=title, width=width)
+        self.label_frame.grid(row=0, column=0, pady=(20, 5), padx=20, sticky="news")
+        self.label_frame.grid_columnconfigure(0, weight=1)
+        self.canvas = tk.Canvas(self.label_frame, borderwidth=0)
 
         self.frame = tk.Frame(self.canvas)
         self.vsb = tk.Scrollbar(self.label_frame, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.vsb.set)
+
         self.vsb.pack(side="right", fill="y")
         self.canvas.pack(side="right", fill="both", expand=True)
         self.canvas.create_window((4, 4), window=self.frame, anchor="ne", tags="self.frame")
@@ -139,7 +101,7 @@ class InspectPanel(tk.Frame):
         self.populate()
         self.frame.bind("<Configure>", self.on_frame_configure)
 
-        self.sub_frame = ttk.Frame(self.content)
+        self.sub_frame = ttk.Frame(self)
         self.confirm_button = ttk.Button(self.sub_frame, text="Confirm", command=self.confirm)
         self.confirm_button.grid(row=0, column=0, padx=5)
         self.reset_button = ttk.Button(self.sub_frame, text="Reset", command=self.reset)
@@ -147,7 +109,10 @@ class InspectPanel(tk.Frame):
         self.mark_all_ok_button = ttk.Button(self.sub_frame, text="Mark all Ok", command=self.mark_all_ok)
         self.mark_all_ok_button.grid(row=0, column=2, padx=5)
         self.sub_frame.grid(row=1, column=0)
-        self.content.grid(row=row, column=column, sticky="nesw", padx=5)
+        self.grid(row=0, column=0, sticky="nesw", padx=5)
+
+        self.grid_columnconfigure(0, weight=1)
+
 
     def populate(self):
         raise NotImplementedError
@@ -169,15 +134,31 @@ class InspectPanel(tk.Frame):
         """Reset the scroll region to encompass the inner frame"""
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
+    def _place_label(self, text, row, column, padx=0):
+        label = ttk.Label(self.frame, text=text)
+        label.grid(row=row, column=column, padx=padx)
+
+    def _place_checkbox(self, variable, idx, column, padx=0):
+        check = ttk.Checkbutton(self.frame, variable=variable)
+        check.grid(row=idx, column=column, padx=padx)
+
+    def _place_selection(self, values, variable, idx, column, padx=0):
+        select = ttk.Combobox(self.frame, values=values, textvariable=variable)
+        select.grid(row=idx, column=column, padx=padx)
+
+    def _place_entry(self, variable, idx, column, padx=0):
+        entry = ttk.Entry(self.frame, textvariable=variable)
+        entry.grid(row=idx, column=column, padx=padx)
+
 
 class InspectBagPanel(InspectPanel):
-    def __init__(self, parent, title, row=0, column=1):
-        super().__init__(parent, title, row, column)
+    def __init__(self, parent, title, width=None):
+        super().__init__(parent, title, width)
 
     def initialize_bags(self):
         out = []
         for i in range(1, 40):
-            rec = Bag("2023-10-01", i, "OK", "", f"20230901GS0{str(i % 3 + 1).rjust(3, '0')}", np.nan)
+            rec = Bag("2023-10-01", i, "OK", "", "Lion's Mane", f"20230901GS0{str(i % 3 + 1).rjust(3, '0')}", None)
             bag = {"status_var": tk.BooleanVar(self.frame),
                    "action_var": tk.StringVar(self.frame),
                    "yield_var": tk.StringVar(self.frame, value=""),
@@ -187,24 +168,23 @@ class InspectBagPanel(InspectPanel):
 
     def populate(self):
         self.entries = self.initialize_bags()
-
-        for i, text in enumerate(["Bag", "Passed", "Action", "Yield"]):
+        columns = ["Bag", "Starter", "Mushroom", "Passed", "Action", "Yield"]
+        for i, text in enumerate(columns):
             header = ttk.Label(self.frame, text=text)
             header.grid(row=0, column=i)
+            self.frame.grid_columnconfigure(i, weight=1)
 
-        for i, _ in enumerate(self.entries, 1):
-            bag_name = ttk.Label(self.frame, text=str(self.entries[i - 1]["record"]))
-            bag_name.grid(row=i, column=0, padx=5)
-            check_box = ttk.Checkbutton(self.frame,
-                                        variable=self.entries[i - 1]["status_var"])
-            check_box.grid(row=i, column=1)
-            action_selection = ttk.Combobox(self.frame,
-                                            textvariable=self.entries[i - 1]["action_var"],
-                                            values=["", "Destroyed", "Induced Pinning", "Harvested"])
-            action_selection.grid(row=i, column=2, padx=5)
-            yield_entry = ttk.Entry(self.frame,
-                                    textvariable=self.entries[i - 1]["yield_var"])
-            yield_entry.grid(row=i, column=3, padx=5)
+        for i, entry in enumerate(self.entries, 1):
+            self._populate_row(entry, i)
+
+    def _populate_row(self, entry, idx):
+        record = entry["record"]
+        self._place_label(str(record), idx, 0, 5)
+        self._place_label(record.starter, idx, 1, 5)
+        self._place_label(record.mushroom, idx, 2, 5)
+        self._place_checkbox(entry["status_var"], idx, 3, 5)
+        self._place_selection(["", "Induced Pinning", "Harvested", "Destroyed"], entry["action_var"], idx, 4, 5)
+        self._place_entry(entry["yield_var"], idx, 5, 5)
 
     def get_entries(self):
         out = []
@@ -226,8 +206,8 @@ class InspectBagPanel(InspectPanel):
 
 
 class InspectGrainSpawnPanel(InspectPanel):
-    def __init__(self, parent, title, row=0, column=1):
-        super().__init__(parent, title, row, column)
+    def __init__(self, parent, title, width=None):
+        super().__init__(parent, title, width)
 
     def populate(self):
         self.entries = self.initialize_grain_spawn()
@@ -271,13 +251,13 @@ class InspectGrainSpawnPanel(InspectPanel):
 
 
 class InspectCulturePanel(InspectPanel):
-    def __init__(self, parent, title, row=0, column=1):
-        super().__init__(parent, title, row, column)
+    def __init__(self, parent, title, width=None):
+        super().__init__(parent, title, width)
 
     def initialize_cultures(self):
         out = []
         for i in range(1, 5):
-            rec = Culture("2023-10-01", i, "", "", np.random.choice(["Lions Mane", "Oyster Mushroom"]), "Agar")
+            rec = Culture("2023-10-01", i, "", "", random.choice(["Lions Mane", "Oyster Mushroom"]), "Agar")
             cul = {"status_var": tk.BooleanVar(self.frame, value=True),
                    "record": rec}
             out.append(cul)
@@ -300,29 +280,56 @@ class InspectCulturePanel(InspectPanel):
             check_box.grid(row=i, column=3)
 
 
+class LabTab(tk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        create_panel = CreatePanel(self, padx=(20, 5), pady=(20, 5))
+        notebook = ttk.Notebook(self)
+
+        inspect_bag_panel = InspectBagPanel(notebook, "Inspect Bags", width=1000)
+        inspect_grain_spawn_panel = InspectGrainSpawnPanel(notebook, "Inspect Grain Spawn", width=1000)
+        inspect_culture_panel = InspectCulturePanel(notebook, "Inspect Cultures")
+
+        for tab, lab in zip([inspect_bag_panel, inspect_grain_spawn_panel, inspect_culture_panel],
+                            ["Bags", "Grain Spawn", "Cultures"]):
+            notebook.add(tab, text=lab)
+
+        create_panel.grid(row=0, column=1, sticky="news")
+        notebook.grid(row=0, column=1, sticky="news")
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=5)
+
+
+class FinanceTab(tk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+
+class HistoryTab(tk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+
 class App(tk.Tk):
     def __init__(self, *args, **kwargs):
         tk.Tk.__init__(self, *args, **kwargs)
-        self.title(APP_NAME)
         self._set_style()
+        self.title("PyLabBook")
 
-        self.content = ttk.Frame(self)
+        notebook = ttk.Notebook(self)
+        lab_tab = LabTab(notebook)
+        lab_tab.pack(fill="both", expand=True)
+        history_tab = HistoryTab(notebook)
+        history_tab.pack(fill="both", expand=True)
+        finance_tab = FinanceTab(notebook)
+        finance_tab.pack(fill="both", expand=True)
 
-        create_panel = CreatePanel(self.content)
+        for tab, lab in zip([lab_tab, history_tab, finance_tab], ["Lab", "History", "Finances"]):
+            notebook.add(tab, text=lab)
 
-        inspect_culture_panel = InspectCulturePanel(self.content, "Inspect Cultures",
-                                                    row=1, column=1)
-
-        inspect_grain_spawn_panel = InspectGrainSpawnPanel(self.content, "Inspect Grain Spawn",
-                                                           row=1, column=0)
-        inspect_bag_panel = InspectBagPanel(self.content, "Inspect Bags",
-                                            row=0, column=1)
-
-        create_panel.grid(row=0, column=0, sticky="nesw")
-        inspect_culture_panel.grid(row=1, column=1, sticky="w")
-        inspect_grain_spawn_panel.grid(row=1, column=0, sticky="w")
-        inspect_bag_panel.grid(row=0, column=1, sticky="w")
-        self.content.pack(expand=True, fill="both")
+        notebook.pack(expand=True, fill='both')
 
     def _set_style(self):
         self.style = ttk.Style(self)
@@ -331,16 +338,8 @@ class App(tk.Tk):
         # Set the theme with the theme_use method
         self.style.theme_use("forest-dark")
 
-    def _make_responsive(self):
-        self.option_add("*tearOff", False)
-        self.columnconfigure(index=0, weight=1)
-        self.columnconfigure(index=1, weight=1)
-        self.columnconfigure(index=2, weight=1)
-        self.rowconfigure(index=0, weight=1)
-        self.rowconfigure(index=1, weight=1)
-        self.rowconfigure(index=2, weight=1)
-
 
 if __name__ == "__main__":
     app = App()
+    # app.state("zoomed")
     app.mainloop()
