@@ -8,7 +8,7 @@ from tkcalendar import DateEntry
 from datastructures import Bag, Culture, GrainSpawn
 
 
-def create_popup(parent):
+def _create_popup(parent):
     # get main window position
     root_x = parent.winfo_rootx()
     root_y = parent.winfo_rooty()
@@ -21,15 +21,52 @@ def create_popup(parent):
     return win
 
 
+def _place_label(parent, text, row, column, padx=0, columnspan=1, rowspan=1):
+    label = ttk.Label(parent, text=text)
+    label.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+
+
+def _place_checkbox(parent, variable, row, column, padx=0, columnspan=1, rowspan=1):
+    check = ttk.Checkbutton(parent, variable=variable)
+    check.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+
+
+def _place_selection(parent, values, variable, row, column, padx=0, columnspan=1, rowspan=1):
+    select = ttk.Combobox(parent, values=values, textvariable=variable)
+    select.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+
+
+def _place_entry(parent, variable, row, column, padx=0, columnspan=1, rowspan=1):
+    entry = ttk.Entry(parent, textvariable=variable)
+    entry.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+
+
+def _place_labelframe(parent, text, row, column, padx=0, columnspan=1, rowspan=1):
+    label_frame = ttk.LabelFrame(parent, text=text)
+    label_frame.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+    return label_frame
+
+
+def _place_button(parent, text, command, row, column, padx=0, columnspan=1, rowspan=1):
+    button = ttk.Button(parent, text=text, command=command)
+    button.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+
+
+def _place_text(parent, row, column, width=50, height=20, padx=0, columnspan=1, rowspan=1):
+    text = tk.Text(parent, width=width, height=height)
+    text.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+    return text
+
+
 class CreatePanel(tk.Frame):
-    def __init__(self, parent, padx=(20, 5), pady=(20, 5)):
+    def __init__(self, parent, padx=None, pady=None):
         super().__init__(parent)
 
         self.buttons = {
-            "Bag": {"row": 0, "col": 0, "command": self.create_bag},
-            "Grain Spawn": {"row": 0, "col": 1, "command": self.create_grain_spawn},
-            "Culture": {"row": 1, "col": 0, "command": self.create_culture},
-            "Recipe": {"row": 1, "col": 1, "command": self.create_recipe}
+            "Bag": self.create_bag,
+            "Grain Spawn": self.create_grain_spawn,
+            "Culture": self.create_culture,
+            "Recipe": self.create_recipe
         }
 
         self.parent = parent
@@ -41,13 +78,13 @@ class CreatePanel(tk.Frame):
         self.frame.grid(row=0, column=0, sticky="nesw")
 
     def populate(self):
-        for text, instructions in self.buttons.items():
-            button = ttk.Button(self.label_frame, text=text, command=instructions["command"])
-            button.grid(row=instructions["row"], column=instructions["col"], padx=5, pady=5)
+        for i, (text, command) in enumerate(self.buttons.items()):
+            button = ttk.Button(self.label_frame, text=text, command=command)
+            button.grid(row=i, column=0, padx=5, pady=5)
 
     def create_bag(self, *args, **kwargs):
-        popup = create_popup(self.parent)
-        popup.wm_title("Window")
+        popup = _create_popup(self.parent)
+        popup.wm_title("Create New Bag")
 
         label_frame = ttk.LabelFrame(popup, text="Create New Bag")
         label_frame.grid(row=0, column=0)
@@ -67,17 +104,28 @@ class CreatePanel(tk.Frame):
         b = ttk.Button(popup, text="Okay", command=foo)
         b.grid(row=2, column=0, columnspan=2)
 
-    def create_grain_spawn(*args, **kwargs):
+    def create_grain_spawn(self, *args, **kwargs):
         # todo: implement me!
         raise NotImplementedError
 
-    def create_culture(*args, **kwargs):
+    def create_culture(self, *args, **kwargs):
         # todo: implement me!
         raise NotImplementedError
 
-    def create_recipe(*args, **kwargs):
+    def create_recipe(self, *args, **kwargs):
         # todo: implement me!
-        raise NotImplementedError
+        popup = _create_popup(self.parent)
+        popup.title("Create New Recipe")
+        ingredients_frame = _place_labelframe(popup, "Ingredients", row=0, column=0)
+        ingredients_var = tk.StringVar(ingredients_frame)
+        ingredients_text = _place_text(ingredients_frame, row=0, column=0)
+        instructions_frame = _place_labelframe(popup, "Instructions", row=0, column=1)
+        instructions_var = tk.StringVar(instructions_frame)
+        instructions_text = _place_text(instructions_frame, row=0, column=0)
+        _place_button(popup, "Okay", command=lambda: print(instructions_text.get("0.0",tk.END)), row=2, column=1, columnspan=2)
+
+
+
 
 
 class InspectPanel(tk.Frame):
@@ -88,9 +136,9 @@ class InspectPanel(tk.Frame):
         self.label_frame = ttk.LabelFrame(self, text=title, width=width)
         self.label_frame.grid(row=0, column=0, pady=(20, 5), padx=20, sticky="news")
         self.label_frame.grid_columnconfigure(0, weight=1)
-        self.canvas = tk.Canvas(self.label_frame, borderwidth=0)
+        self.canvas = tk.Canvas(self.label_frame, borderwidth=0, width=width)
 
-        self.frame = tk.Frame(self.canvas)
+        self.frame = tk.Frame(self.canvas, width=width)
         self.vsb = tk.Scrollbar(self.label_frame, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.vsb.set)
 
@@ -113,7 +161,6 @@ class InspectPanel(tk.Frame):
 
         self.grid_columnconfigure(0, weight=1)
 
-
     def populate(self):
         raise NotImplementedError
 
@@ -133,22 +180,6 @@ class InspectPanel(tk.Frame):
     def on_frame_configure(self, event):
         """Reset the scroll region to encompass the inner frame"""
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-
-    def _place_label(self, text, row, column, padx=0):
-        label = ttk.Label(self.frame, text=text)
-        label.grid(row=row, column=column, padx=padx)
-
-    def _place_checkbox(self, variable, idx, column, padx=0):
-        check = ttk.Checkbutton(self.frame, variable=variable)
-        check.grid(row=idx, column=column, padx=padx)
-
-    def _place_selection(self, values, variable, idx, column, padx=0):
-        select = ttk.Combobox(self.frame, values=values, textvariable=variable)
-        select.grid(row=idx, column=column, padx=padx)
-
-    def _place_entry(self, variable, idx, column, padx=0):
-        entry = ttk.Entry(self.frame, textvariable=variable)
-        entry.grid(row=idx, column=column, padx=padx)
 
 
 class InspectBagPanel(InspectPanel):
@@ -179,12 +210,12 @@ class InspectBagPanel(InspectPanel):
 
     def _populate_row(self, entry, idx):
         record = entry["record"]
-        self._place_label(str(record), idx, 0, 5)
-        self._place_label(record.starter, idx, 1, 5)
-        self._place_label(record.mushroom, idx, 2, 5)
-        self._place_checkbox(entry["status_var"], idx, 3, 5)
-        self._place_selection(["", "Induced Pinning", "Harvested", "Destroyed"], entry["action_var"], idx, 4, 5)
-        self._place_entry(entry["yield_var"], idx, 5, 5)
+        _place_label(self.frame, str(record), idx, 0, 5)
+        _place_label(self.frame, record.starter, idx, 1, 5)
+        _place_label(self.frame, record.mushroom, idx, 2, 5)
+        _place_checkbox(self.frame, entry["status_var"], idx, 3, 5)
+        _place_selection(self.frame, ["", "Induced Pinning", "Harvested", "Destroyed"], entry["action_var"], idx, 4, 5)
+        _place_entry(self.frame, entry["yield_var"], idx, 5, 5)
 
     def get_entries(self):
         out = []
@@ -284,22 +315,22 @@ class LabTab(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
 
-        create_panel = CreatePanel(self, padx=(20, 5), pady=(20, 5))
+        create_panel = CreatePanel(self)
         notebook = ttk.Notebook(self)
 
-        inspect_bag_panel = InspectBagPanel(notebook, "Inspect Bags", width=1000)
-        inspect_grain_spawn_panel = InspectGrainSpawnPanel(notebook, "Inspect Grain Spawn", width=1000)
-        inspect_culture_panel = InspectCulturePanel(notebook, "Inspect Cultures")
+        inspect_bag_panel = InspectBagPanel(notebook, "Inspect Bags", width=700)
+        inspect_grain_spawn_panel = InspectGrainSpawnPanel(notebook, "Inspect Grain Spawn", width=700)
+        inspect_culture_panel = InspectCulturePanel(notebook, "Inspect Cultures", width=700)
 
         for tab, lab in zip([inspect_bag_panel, inspect_grain_spawn_panel, inspect_culture_panel],
                             ["Bags", "Grain Spawn", "Cultures"]):
             notebook.add(tab, text=lab)
 
-        create_panel.grid(row=0, column=1, sticky="news")
+        create_panel.grid(row=0, column=1, sticky="ews")
         notebook.grid(row=0, column=1, sticky="news")
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=5)
+        self.grid_columnconfigure(1, weight=6)
 
 
 class FinanceTab(tk.Frame):
