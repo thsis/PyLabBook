@@ -38,3 +38,10 @@ class GrainSpawn(Record):
 
     def __str__(self):
         return f"{self.created_at.strftime('%Y%m%d')}GS{str(self.id).rjust(3, '0')}"
+
+
+@dataclass
+class Recipe:
+    name: str
+    ingredients: str
+    instructions: str

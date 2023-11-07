@@ -5,8 +5,11 @@ from tkinter import ttk
 from datetime import date
 from tkcalendar import DateEntry
 
-from datastructures import Bag, Culture, GrainSpawn
+from datastructures import Recipe, Bag, Culture, GrainSpawn
+from database import connect, initialize_tables, get_current, write
 
+
+CON = connect()
 
 def _create_popup(parent):
     # get main window position
@@ -16,45 +19,45 @@ def _create_popup(parent):
     # add offset
     win_x = root_x + 300
     win_y = root_y + 100
-    win = tk.Toplevel()
+    win = tk.Toplevel(parent)
     win.geometry(f'+{win_x}+{win_y}')
     return win
 
 
-def _place_label(parent, text, row, column, padx=0, columnspan=1, rowspan=1):
+def _place_label(parent, text, row, column, **kwargs):
     label = ttk.Label(parent, text=text)
-    label.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+    label.grid(row=row, column=column, **kwargs)
 
 
-def _place_checkbox(parent, variable, row, column, padx=0, columnspan=1, rowspan=1):
+def _place_checkbox(parent, variable, row, column, **kwargs):
     check = ttk.Checkbutton(parent, variable=variable)
-    check.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+    check.grid(row=row, column=column, **kwargs)
 
 
-def _place_selection(parent, values, variable, row, column, padx=0, columnspan=1, rowspan=1):
+def _place_selection(parent, values, variable, row, column, **kwargs):
     select = ttk.Combobox(parent, values=values, textvariable=variable)
-    select.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+    select.grid(row=row, column=column, **kwargs)
 
 
-def _place_entry(parent, variable, row, column, padx=0, columnspan=1, rowspan=1):
+def _place_entry(parent, variable, row, column, **kwargs):
     entry = ttk.Entry(parent, textvariable=variable)
-    entry.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+    entry.grid(row=row, column=column, **kwargs)
 
 
-def _place_labelframe(parent, text, row, column, padx=0, columnspan=1, rowspan=1):
+def _place_labelframe(parent, text, row, column, **kwargs):
     label_frame = ttk.LabelFrame(parent, text=text)
-    label_frame.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+    label_frame.grid(row=row, column=column, **kwargs)
     return label_frame
 
 
-def _place_button(parent, text, command, row, column, padx=0, columnspan=1, rowspan=1):
+def _place_button(parent, text, command, row, column, **kwargs):
     button = ttk.Button(parent, text=text, command=command)
-    button.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+    button.grid(row=row, column=column, **kwargs)
 
 
-def _place_text(parent, row, column, width=50, height=20, padx=0, columnspan=1, rowspan=1):
+def _place_text(parent, row, column, width=1, height=20, **kwargs):
     text = tk.Text(parent, width=width, height=height)
-    text.grid(row=row, column=column, padx=padx, columnspan=columnspan, rowspan=rowspan)
+    text.grid(row=row, column=column, **kwargs)
     return text
 
 
@@ -113,16 +116,38 @@ class CreatePanel(tk.Frame):
         raise NotImplementedError
 
     def create_recipe(self, *args, **kwargs):
-        # todo: implement me!
+
+        def write_recipe():
+            nonlocal popup
+            name = name_var.get()
+            ingredients = ingredients_text.get("0.0",tk.END)
+            instructions = instructions_text.get("0.0",tk.END)
+            recipe = Recipe(name=name, ingredients=ingredients, instructions=instructions)
+            # todo: make me pretty
+            msg = _create_popup(popup)
+            _place_label(msg, "Recipe Written to Database", 0, 0)
+            write(recipe, CON)
+
         popup = _create_popup(self.parent)
         popup.title("Create New Recipe")
-        ingredients_frame = _place_labelframe(popup, "Ingredients", row=0, column=0)
-        ingredients_var = tk.StringVar(ingredients_frame)
-        ingredients_text = _place_text(ingredients_frame, row=0, column=0)
-        instructions_frame = _place_labelframe(popup, "Instructions", row=0, column=1)
-        instructions_var = tk.StringVar(instructions_frame)
-        instructions_text = _place_text(instructions_frame, row=0, column=0)
-        _place_button(popup, "Okay", command=lambda: print(instructions_text.get("0.0",tk.END)), row=2, column=1, columnspan=2)
+        popup.grid_columnconfigure(0, weight=1, uniform="t")
+        popup.grid_columnconfigure(1, weight=3, uniform="t")
+
+        _place_label(popup, "Recipe Name:", row=0, column=0, sticky="news")
+        name_var = tk.StringVar()
+        _place_entry(popup, variable=name_var, row=0, column=1, sticky="news")
+
+        _place_label(popup, "Ingredients", row=1, column=0, sticky="news")
+        ingredients_text = _place_text(popup, width=15, row=2, column=0, sticky="news")
+
+        _place_label(popup, "Instructions", row=1, column=1, sticky="news")
+        instructions_text = _place_text(popup, width=50, row=2, column=1, sticky="news")
+
+        # todo: add checks
+        _place_button(popup, "Okay",
+                      command=write_recipe,
+                      row=3, column=0, columnspan=2, sticky="news")
+
 
 
 
@@ -210,12 +235,12 @@ class InspectBagPanel(InspectPanel):
 
     def _populate_row(self, entry, idx):
         record = entry["record"]
-        _place_label(self.frame, str(record), idx, 0, 5)
-        _place_label(self.frame, record.starter, idx, 1, 5)
-        _place_label(self.frame, record.mushroom, idx, 2, 5)
-        _place_checkbox(self.frame, entry["status_var"], idx, 3, 5)
-        _place_selection(self.frame, ["", "Induced Pinning", "Harvested", "Destroyed"], entry["action_var"], idx, 4, 5)
-        _place_entry(self.frame, entry["yield_var"], idx, 5, 5)
+        _place_label(self.frame, str(record), idx, 0, padx=5)
+        _place_label(self.frame, record.starter, idx, 1, padx=5)
+        _place_label(self.frame, record.mushroom, idx, 2, padx=5)
+        _place_checkbox(self.frame, entry["status_var"], idx, 3, padx=5)
+        _place_selection(self.frame, ["", "Induced Pinning", "Harvested", "Destroyed"], entry["action_var"], idx, 4, padx=5)
+        _place_entry(self.frame, entry["yield_var"], idx, 5, padx=5)
 
     def get_entries(self):
         out = []
