@@ -177,7 +177,6 @@ class CreatePanel(tk.Frame):
 
         popup = _create_popup(self.parent)
         popup.title("Add New Culture")
-        # todo: configure column width
         popup.grid_columnconfigure(0, weight=1)
         popup.grid_columnconfigure(1, weight=3)
 
@@ -196,9 +195,7 @@ class CreatePanel(tk.Frame):
         recipe_panel = ttk.Frame(popup)
         recipe_panel.grid(row=0, column=1, sticky="news")
 
-        # todo: implement naming scheme
         title_label = _place_label(control_panel, "", row=0, column=0, columnspan=2)
-
         _place_label(control_panel, "Variant:", row=1, column=0, sticky="news")
         _place_entry(control_panel, variant_name, row=1, column=1, sticky="news")
         _place_label(control_panel, "Created At:", row=2, column=0, sticky="news")
@@ -215,10 +212,6 @@ class CreatePanel(tk.Frame):
         ingredients_panel = _place_text(recipe_panel, row=1, column=0, width=70, height=10, disable=True)
         _place_label(recipe_panel, "Instructions", row=2, column=0)
         instructions_panel = _place_text(recipe_panel, row=3, column=0, width=70, disable=True)
-
-
-
-
 
     def create_recipe(self, *args, **kwargs):
         def write_recipe():
@@ -332,6 +325,7 @@ class InspectBagPanel(InspectPanel):
         return out
 
     def populate(self):
+        # todo: implement me!
         pass
         # self.entries = self.initialize_bags()
         # columns = ["Bag", "Starter", "Mushroom", "Passed", "Action", "Yield"]
@@ -376,6 +370,7 @@ class InspectGrainSpawnPanel(InspectPanel):
         super().__init__(parent, title, database, width)
 
     def populate(self):
+        # todo: implement me!
         pass
         # self.entries = self.initialize_grain_spawn()
         # for i, text in enumerate(["Grain Spawn", "Container", "Passed", "Action"]):
@@ -431,6 +426,7 @@ class InspectCulturePanel(InspectPanel):
         return out
 
     def populate(self):
+        # todo: implement me!
         pass
         # self.entries = self.initialize_cultures()
         # for i, text in enumerate(["Culture", "Mushroom", "Medium", "Passed"]):

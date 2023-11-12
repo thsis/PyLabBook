@@ -69,7 +69,7 @@ class Database:
         CREATE TABLE IF NOT EXISTS culture_observations(
             culture_id INTEGER,
             observed_at DATETIME DEFAULT (current_date),
-            action TEXT CHECK ( action in ('Created', 'Harvested', 'Destroyed') ),
+            action TEXT CHECK ( action in ('Created', 'Destroyed') ),
             passed INTEGER NOT NULL CHECK ( passed in (0, 1) ),
             FOREIGN KEY (culture_id) REFERENCES cultures(culture_id));
     
@@ -142,9 +142,51 @@ class Database:
         out, = result.fetchone()
         return out
 
-    def get_current(self):
-        # todo: implement me!
-        raise NotImplementedError
+    def get_current_bags(self):
+        sql = """
+        SELECT
+            bags.created_at,
+            bags.bag_id,
+            bags.grain_spawn_id,
+            bags.recipe_id
+        FROM bags
+        WHERE NOT EXISTS(SELECT 1
+                         FROM bag_observations obs
+                         WHERE obs.bag_id = bags.bag_id
+                           AND obs.action in ('Harvested', 'Destroyed'))"""
+        out = [Bag(*b) for b in self.cursor.execute(sql)]
+        return out
+
+    def get_current_grain_spawn(self):
+        sql = """
+        SELECT
+            created_at,
+            grain_spawn_id,
+            culture_id,
+            recipe_id
+        FROM grain_spawn gra
+        WHERE NOT EXISTS(SELECT 1
+                         FROM grain_spawn_observations obs
+                         WHERE obs.grain_spawn_id = gra.grain_spawn_id
+                           AND obs.action in ('Destroyed', 'Used'))"""
+        out = [GrainSpawn(*g) for g in self.cursor.execute(sql)]
+        return out
+
+    def get_current_cultures(self):
+        sql = """
+        SELECT 
+            cul.created_at, 
+            cul.culture_id,
+            cul.mushroom,
+            cul.variant,
+            cul.medium
+        FROM cultures cul
+        WHERE NOT EXISTS(SELECT 1
+                         FROM culture_observations obs
+                         WHERE obs.culture_id = cul.culture_id
+                           AND obs.action = 'Destroyed')"""
+        out = [Culture(*c) for c in self.cursor.execute(sql)]
+        return out
 
     def write(self, obj):
         if isinstance(obj, Recipe):

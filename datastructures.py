@@ -8,7 +8,10 @@ class Experiment:
     id: (int, None)
 
     def __post_init__(self):
-        self.created_at = datetime.strptime(self.created_at, "%Y-%m-%d")
+        try:
+            self.created_at = datetime.strptime(self.created_at, "%Y-%m-%d")
+        except ValueError:
+            self.created_at = datetime.strptime(self.created_at, "%Y-%m-%d %H:%M:%S")
         self.name = str(self)
 
 
@@ -30,9 +33,8 @@ class Culture(Experiment):
 
 @dataclass
 class Bag(Experiment):
-    mushroom: str
-    starter: str
-    total_yield: float
+    grain_spawn_id: int
+    recipe_id: int
 
     def __post_init__(self):
         super().__post_init__()
@@ -43,7 +45,8 @@ class Bag(Experiment):
 
 @dataclass
 class GrainSpawn(Experiment):
-    container: int
+    culture_id: int
+    recipe_id: int
 
     def __post_init__(self):
         super().__post_init__()
