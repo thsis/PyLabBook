@@ -1,7 +1,7 @@
 import os
 import sqlite3
 import itertools
-from datastructures import Recipe, Culture, GrainSpawn, Bag
+from datastructures import Recipe, Culture, GrainSpawn, Bag, CultureObservation, GrainSpawnObservation, BagObservation
 
 
 class Database:
@@ -69,23 +69,26 @@ class Database:
         CREATE TABLE IF NOT EXISTS culture_observations(
             culture_id INTEGER,
             observed_at DATETIME DEFAULT (current_date),
-            action TEXT CHECK ( action in ('Created', 'Destroyed') ),
+            action TEXT CHECK ( action in ('Created', 'Destroyed') OR action IS NULL ),
             passed INTEGER NOT NULL CHECK ( passed in (0, 1) ),
-            FOREIGN KEY (culture_id) REFERENCES cultures(culture_id));
+            FOREIGN KEY (culture_id) REFERENCES cultures(culture_id),
+            PRIMARY KEY (culture_id, observed_at));
     
         CREATE TABLE IF NOT EXISTS grain_spawn_observations(
             grain_spawn_id INTEGER,
             observed_at DATETIME DEFAULT (current_date),
-            action TEXT CHECK ( action in ('Created', 'Used', 'Destroyed') ),
+            action TEXT CHECK ( action in ('Created', 'Used', 'Destroyed') OR action IS NULL ),
             passed INTEGER NOT NULL CHECK ( passed in (0, 1) ),
-            FOREIGN KEY (grain_spawn_id) REFERENCES grain_spawn(grain_spawn_id));
+            FOREIGN KEY (grain_spawn_id) REFERENCES grain_spawn(grain_spawn_id),
+            PRIMARY KEY (grain_spawn_id, observed_at));
         
         CREATE TABLE IF NOT EXISTS bag_observations(
             bag_id INTEGER,
             observed_at DATETIME DEFAULT (current_date),
-            action TEXT CHECK ( action in ('Created', 'Harvested', 'Destroyed') ),
+            action TEXT CHECK ( action in ('Created', 'Harvested', 'Destroyed') OR action IS NULL ),
             passed INTEGER NOT NULL CHECK ( passed in (0, 1) ),
-            FOREIGN KEY (bag_id) REFERENCES bags(bag_id));"""
+            FOREIGN KEY (bag_id) REFERENCES bags(bag_id),
+            PRIMARY KEY (bag_id, observed_at));"""
 
         for statement in sql.split(";"):
             self.cursor.execute(statement)
@@ -189,11 +192,15 @@ class Database:
         return out
 
     def write(self, obj):
-        if isinstance(obj, Recipe):
+        if isinstance(obj, list):
+            for o in obj:
+                self.write(o)
+        elif isinstance(obj, Recipe):
             self.__write_recipe(obj)
-        if isinstance(obj, Culture):
+        elif isinstance(obj, Culture):
             self.__write_culture(obj)
-        # todo: implement me!
+        elif isinstance(obj, CultureObservation):
+            self.__write_culture_observation(obj)
         else:
             raise NotImplementedError
 
@@ -218,6 +225,21 @@ class Database:
         sql = """
         INSERT INTO cultures(name, created_at, variant, mushroom, medium)
         VALUES ($name, $created_at, $variant, $mushroom, $medium)"""
+        self.cursor.execute(sql, params)
+        self.connection.commit()
+
+    def __write_culture_observation(self, culture_observation: CultureObservation):
+        print(culture_observation)
+        print(type(culture_observation))
+        params = {'culture_id': culture_observation.experiment.id,
+                  'observed_at': culture_observation.observed_at,
+                  'action': culture_observation.action,
+                  'passed': culture_observation.passed}
+
+        sql = """
+        INSERT INTO culture_observations(culture_id, observed_at, action, passed)
+        VALUES ($culture_id, $observed_at, $action, $passed)
+        ON CONFLICT (culture_id, observed_at) DO UPDATE SET action=excluded.action, passed=excluded.passed"""
         self.cursor.execute(sql, params)
         self.connection.commit()
 

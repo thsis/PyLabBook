@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-
+from copy import copy
 
 @dataclass
 class Experiment:
@@ -73,8 +73,7 @@ class Recipe:
 
 @dataclass
 class Observation:
-    id: int
-    experiment: Experiment
+    experiment: (Experiment, Culture, GrainSpawn, Bag)
     observed_at: (str, datetime)
     passed: bool
 

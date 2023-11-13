@@ -7,7 +7,7 @@ from tkinter import messagebox
 from datetime import date
 from tkcalendar import DateEntry
 
-from datastructures import Recipe, Bag, Culture, GrainSpawn
+from datastructures import Recipe, Bag, Culture, GrainSpawn, CultureObservation, GrainSpawnObservation, BagObservation
 from database import Database
 
 
@@ -75,7 +75,7 @@ def _place_counter(parent, variable, row, column, width=None, **kwargs):
 
 
 class CreatePanel(tk.Frame):
-    def __init__(self, parent, database, padx=None, pady=None):
+    def __init__(self, parent, database, observed_at, padx=None, pady=None):
         super().__init__(parent)
         self.database = database
 
@@ -89,11 +89,12 @@ class CreatePanel(tk.Frame):
         self.parent = parent
 
         self.frame = ttk.Frame(self.parent)
+        self.observed_at = observed_at
 
         self.date_label = ttk.LabelFrame(self.frame, text="Date")
         self.date_label.grid(row=0, column=0, sticky="news", padx=padx, pady=pady)
-        self.created_at_var = tk.StringVar(self.frame, value=date.today().strftime("%Y-%m-%d"))
-        self.created_at_widget = DateEntry(self.date_label, date_pattern='y-mm-dd', textvariable=self.created_at_var)
+
+        self.created_at_widget = DateEntry(self.date_label, date_pattern='y-mm-dd', textvariable=self.observed_at)
         self.created_at_widget.grid(row=0, column=0, sticky="news", padx=padx, pady=pady)
 
         self.label_frame = ttk.LabelFrame(self.frame, text="Create New")
@@ -255,10 +256,11 @@ class CreatePanel(tk.Frame):
 
 
 class InspectPanel(tk.Frame):
-    def __init__(self, parent, title, database, width=None):
+    def __init__(self, parent, title, database, observed_at, width=None):
         super().__init__(parent)
         self.database = database
         self.entries = []
+        self.observed_at = observed_at
 
         self.label_frame = ttk.LabelFrame(self, text=title, width=width)
         self.label_frame.grid(row=0, column=0, pady=(20, 5), padx=20, sticky="news")
@@ -325,7 +327,7 @@ class InspectBagPanel(InspectPanel):
         return out
 
     def populate(self):
-        # todo: implement me!
+        # todo: implement me! Make use of the Observation subclass
         pass
         # self.entries = self.initialize_bags()
         # columns = ["Bag", "Starter", "Mushroom", "Passed", "Action", "Yield"]
@@ -370,7 +372,7 @@ class InspectGrainSpawnPanel(InspectPanel):
         super().__init__(parent, title, database, width)
 
     def populate(self):
-        # todo: implement me!
+        # todo: implement me! ! Make use of the Observation subclass
         pass
         # self.entries = self.initialize_grain_spawn()
         # for i, text in enumerate(["Grain Spawn", "Container", "Passed", "Action"]):
@@ -413,57 +415,70 @@ class InspectGrainSpawnPanel(InspectPanel):
 
 
 class InspectCulturePanel(InspectPanel):
-    def __init__(self, parent, title, database, width=None):
-        super().__init__(parent, title, database, width)
-
-    def initialize_cultures(self):
-        out = []
-        for i in range(1, 5):
-            rec = Culture("2023-10-01", i, "", "", random.choice(["Lions Mane", "Oyster Mushroom"]), "Agar")
-            cul = {"status_var": tk.BooleanVar(self.frame, value=True),
-                   "record": rec}
-            out.append(cul)
-        return out
+    def __init__(self, parent, title, database, observed_at, width=None):
+        self.entries = []
+        self.check_results = []
+        self.actions = []
+        super().__init__(parent, title, database, observed_at, width)
 
     def populate(self):
-        # todo: implement me!
-        pass
-        # self.entries = self.initialize_cultures()
-        # for i, text in enumerate(["Culture", "Mushroom", "Medium", "Passed"]):
-        #     header = ttk.Label(self.frame, text=text)
-        #     header.grid(row=0, column=i)
+        observed_at = self.observed_at.get()
+        action_values = ['', 'Created', 'Destroyed']
+        self.entries = [CultureObservation(c, observed_at, 1, "") for c in self.database.get_current_cultures()]
+        self.check_results = [tk.IntVar(self, value=1) for _ in self.entries]
+        self.actions = [tk.StringVar(value="") for _ in self.entries]
+
+        for i, text in enumerate(["Culture", "Mushroom", "Variant", "Medium", "Passed"]):
+            header = ttk.Label(self.frame, text=text)
+            header.grid(row=0, column=i)
 #
-        # for i, _ in enumerate(self.entries, 1):
-        #     cul_name = ttk.Label(self.frame, text=str(self.entries[i-1]["record"]))
-        #     cul_name.grid(row=i, column=0, padx=5)
-        #     cul_mushroom = ttk.Label(self.frame, text=self.entries[i-1]["record"].mushroom)
-        #     cul_mushroom.grid(row=i, column=1, padx=5)
-        #     cul_medium = ttk.Label(self.frame, text=self.entries[i-1]["record"].medium)
-        #     cul_medium.grid(row=i, column=2, padx=5)
-        #     check_box = ttk.Checkbutton(self.frame, variable=self.entries[i-1]["status_var"])
-        #     check_box.grid(row=i, column=3)
+        for i, _ in enumerate(self.entries):
+            _place_label(self.frame, text=str(self.entries[i].experiment.name), row=i+1, column=0, padx=5)
+            _place_label(self.frame, text=self.entries[i].experiment.mushroom, row=i+1, column=1, padx=5)
+            _place_label(self.frame, text=self.entries[i].experiment.variant, row=i+1, column=2, padx=5)
+            _place_label(self.frame, text=self.entries[i].experiment.medium, row=i+1, column=3, padx=5)
+            _place_checkbox(self.frame, self.check_results[i], row=i+1, column=4, padx=5)
+            _place_selection(self.frame, values=action_values, variable=self.actions[i], row=i+1, column=5, padx=5)
+
+    def confirm(self):
+        observed_at = self.observed_at.get()
+        for entry, check, action in zip(self.entries, self.check_results, self.actions):
+            entry.passed = check.get()
+            entry.action = action.get()
+            entry.observed_at = observed_at
+
+        self.database.write(self.entries)
 
 
 class LabTab(tk.Frame):
     def __init__(self, parent, database):
         super().__init__(parent)
 
-        create_panel = CreatePanel(self, database)
-        notebook = ttk.Notebook(self)
+        observed_at = tk.StringVar(value=date.today().strftime("%Y-%m-%d"))
 
-        inspect_bag_panel = InspectBagPanel(notebook, "Inspect Bags", database, width=700)
-        inspect_grain_spawn_panel = InspectGrainSpawnPanel(notebook, "Inspect Grain Spawn", database, width=700)
-        inspect_culture_panel = InspectCulturePanel(notebook, "Inspect Cultures", database, width=700)
+        create_panel = CreatePanel(self, database, observed_at)
+        self.notebook = ttk.Notebook(self)
 
-        for tab, lab in zip([inspect_bag_panel, inspect_grain_spawn_panel, inspect_culture_panel],
+        self.inspect_bag_panel = InspectBagPanel(self.notebook, "Inspect Bags", database, width=700)
+        self.inspect_grain_spawn_panel = InspectGrainSpawnPanel(self.notebook, "Inspect Grain Spawn", database, width=700)
+        self.inspect_culture_panel = InspectCulturePanel(self.notebook, "Inspect Cultures", database, observed_at, width=700)
+
+        for tab, lab in zip([self.inspect_bag_panel, self.inspect_grain_spawn_panel, self.inspect_culture_panel],
                             ["Bags", "Grain Spawn", "Cultures"]):
-            notebook.add(tab, text=lab)
+            self.notebook.add(tab, text=lab)
 
         create_panel.grid(row=0, column=1, sticky="ews")
-        notebook.grid(row=0, column=1, sticky="news")
+        self.notebook.grid(row=0, column=1, sticky="news")
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=6)
+        observed_at.trace_add("write", self.update_contents)
+
+    def update_contents(self, var, index, mode):
+        self.inspect_culture_panel.populate()
+        self.inspect_grain_spawn_panel.populate()
+        self.inspect_bag_panel.populate()
+
 
 
 class FinanceTab(tk.Frame):
@@ -500,6 +515,7 @@ class App(tk.Tk):
             notebook.add(tab, text=lab)
 
         notebook.pack(expand=True, fill='both')
+
 
     def _set_style(self):
         self.style = ttk.Style(self)
