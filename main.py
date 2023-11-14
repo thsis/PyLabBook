@@ -69,7 +69,7 @@ def _place_text(parent, row, column, width=1, height=20, disable=False, **kwargs
 
 
 def _place_counter(parent, variable, row, column, width=None, **kwargs):
-    counter = ttk.Spinbox(parent, width=width, textvariable=variable)
+    counter = ttk.Spinbox(parent, width=width, textvariable=variable, from_=1, to=1000, increment=1)
     counter.grid(row=row, column=column, **kwargs)
     return counter
 
@@ -201,7 +201,6 @@ class CreatePanel(tk.Frame):
         _place_label(control_panel, "Culture:", row=1, column=0, sticky="news")
         _place_selection(control_panel, list(cultures.keys()), culture_name_var, row=1, column=1, sticky="news")
 
-
         mushroom_label = _place_label(control_panel, "Mushroom", row=2, column=0, sticky="news")
         variant_label = _place_label(control_panel, "Variant", row=2, column=1, sticky="news")
 
@@ -211,7 +210,6 @@ class CreatePanel(tk.Frame):
         _place_label(control_panel, "Created At:", row=4, column=0, sticky="news")
         created_at_widget = DateEntry(control_panel, date_pattern='y-mm-dd', textvariable=created_at_var)
         created_at_widget.grid(row=4, column=1, sticky="news")
-
 
         _place_label(control_panel, "Amount:", row=5, column=0, sticky="news")
         _place_counter(control_panel, count_var, row=5, column=1)
@@ -539,7 +537,6 @@ class InspectCulturePanel(InspectPanel):
             _place_label(self.frame, text=self.entries[i].experiment.medium, row=i+1, column=3, padx=5)
             _place_checkbox(self.frame, self.check_results[i], row=i+1, column=4, padx=5)
             _place_selection(self.frame, values=action_values, variable=self.actions[i], row=i+1, column=5, padx=5)
-
 
 
 class LabTab(tk.Frame):
