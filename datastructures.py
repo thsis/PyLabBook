@@ -9,7 +9,7 @@ class Experiment:
 
     def __post_init__(self):
         try:
-            self.created_at = datetime.strptime(self.created_at, "%Y-%m-%d")
+            self.created_at = datetime.strptime(self.created_at, "%Y-%m-%d") if self.created_at else None
         except ValueError:
             self.created_at = datetime.strptime(self.created_at, "%Y-%m-%d %H:%M:%S")
         self.name = str(self)
@@ -76,33 +76,32 @@ class Observation:
     experiment: (Experiment, Culture, GrainSpawn, Bag)
     observed_at: (str, datetime)
     passed: bool
+    action: (str, None)
 
     def __post_init__(self):
-        self.observed_at = datetime.strptime(self.observed_at, "%Y-%m-%d")
+        self.action = None if self.action == "" else self.action
+        self.observed_at = datetime.strptime(self.observed_at, "%Y-%m-%d") if self.observed_at else None
 
 
 @dataclass
 class CultureObservation(Observation):
-    action: str
 
     def __post_init__(self):
         super().__post_init__()
-        assert self.action in ["", "Created", "Destroyed"]
+        assert self.action in [None, "Created", "Destroyed"]
 
 
 @dataclass
 class GrainSpawnObservation(Observation):
-    action: str
 
     def __post_init__(self):
         super().__post_init__()
-        assert self.action in ["", "Created", "Destroyed", "Used"]
+        assert self.action in [None, "Created", "Destroyed", "Used"]
 
 
 @dataclass
 class BagObservation(Observation):
-    action: str
 
     def __post_init__(self):
         super().__post_init__()
-        assert self.action in ["", "Created", "Destroyed", "Harvested", "Induced Pinning"]
+        assert self.action in [None, "Created", "Destroyed", "Harvested", "Induced Pinning"]
