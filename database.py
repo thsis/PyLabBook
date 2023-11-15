@@ -44,7 +44,7 @@ class Database:
         sql = """
         CREATE TABLE IF NOT EXISTS grain_spawn (
             grain_spawn_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
+            name TEXT NOT NULL UNIQUE,
             created_at DATETIME DEFAULT (current_date),
             culture_id INTEGER,
             recipe_id INTEGER,
@@ -57,7 +57,7 @@ class Database:
         sql = """
         CREATE TABLE IF NOT EXISTS bags(
             bag_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
+            name TEXT NOT NULL UNIQUE,
             created_at DATETIME DEFAULT (current_date),
             grain_spawn_id INTEGER,
             recipe_id INTEGER,
