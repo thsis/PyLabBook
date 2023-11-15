@@ -89,6 +89,7 @@ class Database:
             observed_at DATETIME DEFAULT (current_date),
             action TEXT CHECK ( action in ('Created', 'Harvested', 'Destroyed') OR action IS NULL ),
             passed INTEGER NOT NULL CHECK ( passed in (0, 1) ),
+            harvested FLOAT,
             FOREIGN KEY (bag_id) REFERENCES bags(bag_id),
             PRIMARY KEY (bag_id, observed_at));"""
 
@@ -96,25 +97,13 @@ class Database:
             self.cursor.execute(statement)
         self.connection.commit()
 
-    def __initialize_harvest_table(self):
-        sql = """
-        CREATE TABLE IF NOT EXISTS harvests(
-            bag_id INTEGER,
-            harvested_at DATETIME DEFAULT (current_date),
-            yield_g FLOAT NOT NULL,
-            FOREIGN KEY (bag_id) REFERENCES bags(bag_id))
-        """
-        self.cursor.execute(sql)
-        self.connection.commit()
-
     def initialize_tables(self):
         self.__initialize_recipe_table()
         self.__initialize_culture_table()
         self.__initialize_grain_spawn_table()
         self.__initialize_bag_table()
-
         self.__initialize_action_tables()
-        self.__initialize_harvest_table()
+
 
         # todo: extend me with financial and bi-tables
 
@@ -149,33 +138,77 @@ class Database:
 
     def get_current_bags(self, date):
         sql = """
-        SELECT
-            bags.created_at,
-            bags.bag_id,
-            bags.grain_spawn_id,
-            bags.recipe_id
-        FROM bags
-        WHERE NOT EXISTS(SELECT 1
-                         FROM bag_observations obs
-                         WHERE obs.bag_id = bags.bag_id
-                           AND obs.action in ('Harvested', 'Destroyed')
-                           AND obs.observed_at <= $date)"""
+        WITH
+        
+        current_bags AS (
+            SELECT
+                bags.created_at,
+                bags.bag_id,
+                bags.grain_spawn_id,
+                bags.recipe_id
+            FROM bags
+            WHERE NOT EXISTS(SELECT 1
+                             FROM bag_observations obs
+                             WHERE obs.bag_id = bags.bag_id
+                               AND obs.action in ('Harvested', 'Destroyed')
+                               AND obs.observed_at <= $date)
+              AND bags.created_at <= $date),
+                               
+        bag_info AS (
+            SELECT
+                grain_spawn.grain_spawn_id,
+                cultures.mushroom,
+                cultures.variant
+            FROM grain_spawn
+            LEFT JOIN cultures USING (culture_id))
+            
+        SELECT 
+            created_at,
+            bag_id,
+            grain_spawn_id,
+            recipe_id,
+            mushroom,
+            variant
+        FROM current_bags
+        LEFT JOIN bag_info USING (grain_spawn_id)
+        """
         out = [Bag(*b) for b in self.cursor.execute(sql, {"date": date})]
         return out
 
     def get_current_grain_spawn(self, date):
         sql = """
+        WITH 
+        
+        current_grain_spawn AS (
+            SELECT
+                date(created_at) as created_at,
+                grain_spawn_id,
+                culture_id,
+                recipe_id
+            FROM grain_spawn gra
+            WHERE NOT EXISTS(SELECT 1
+                             FROM grain_spawn_observations obs
+                             WHERE obs.grain_spawn_id = gra.grain_spawn_id
+                               AND (obs.action in ('Destroyed', 'Used') AND obs.observed_at <= $date))
+              AND gra.created_at <= $date),
+        
+        grain_spawn_info AS (
+            SELECT
+                culture_id,
+                mushroom,
+                variant
+            FROM cultures)
+            
         SELECT
-            date(created_at) as created_at,
+            created_at,
             grain_spawn_id,
             culture_id,
-            recipe_id
-        FROM grain_spawn gra
-        WHERE NOT EXISTS(SELECT 1
-                         FROM grain_spawn_observations obs
-                         WHERE obs.grain_spawn_id = gra.grain_spawn_id
-                           AND obs.action in ('Destroyed', 'Used')
-                           AND obs.observed_at <= $date)"""
+            recipe_id,
+            mushroom,
+            variant
+        FROM current_grain_spawn
+        LEFT JOIN grain_spawn_info USING (culture_id)                     
+        """
         out = [GrainSpawn(*g) for g in self.cursor.execute(sql, {"date": date})]
         return out
 
@@ -192,7 +225,8 @@ class Database:
                          FROM culture_observations obs
                          WHERE obs.culture_id = cul.culture_id
                            AND obs.action = 'Destroyed'
-                           AND obs.observed_at <= $date)"""
+                           AND (obs.observed_at <= $date AND cul.created_at >= $date))
+        """
         out = [Culture(*c) for c in self.cursor.execute(sql, {"date": date})]
         return out
 
@@ -206,10 +240,14 @@ class Database:
             self.__write_culture(obj)
         elif isinstance(obj, GrainSpawn):
             self.__write_grain_spawn(obj)
+        elif isinstance(obj, Bag):
+            self.__write_bag(obj)
         elif isinstance(obj, CultureObservation):
             self.__write_culture_observation(obj)
         elif isinstance(obj, GrainSpawnObservation):
             self.__write_grain_spawn_observation(obj)
+        elif isinstance(obj, BagObservation):
+            self.__write_bag_observation(obj)
         else:
             raise NotImplementedError
 
@@ -248,6 +286,17 @@ class Database:
         self.cursor.execute(sql, params)
         self.connection.commit()
 
+    def __write_bag(self, bag):
+        params = {'name': bag.name,
+                  'created_at': bag.created_at,
+                  'grain_spawn_id': bag.grain_spawn_id,
+                  'recipe_id': bag.recipe_id}
+        sql = """
+        INSERT INTO bags(name, created_at, grain_spawn_id, recipe_id)
+        VALUES ($name, $created_at, $grain_spawn_id, $recipe_id)"""
+        self.cursor.execute(sql, params)
+        self.connection.commit()
+
     def __write_culture_observation(self, culture_observation: CultureObservation):
         params = {'culture_id': culture_observation.experiment.id,
                   'observed_at': culture_observation.observed_at,
@@ -271,6 +320,22 @@ class Database:
         INSERT INTO grain_spawn_observations(grain_spawn_id, observed_at, action, passed)
         VALUES ($grain_spawn_id, $observed_at, $action, $passed)
         ON CONFLICT (grain_spawn_id, observed_at) DO UPDATE SET action=excluded.action, passed=excluded.passed"""
+        self.cursor.execute(sql, params)
+        self.connection.commit()
+
+    def __write_bag_observation(self, bag_observation: BagObservation):
+        params = {'bag_id': bag_observation.experiment.id,
+                  'observed_at': bag_observation.observed_at,
+                  'action': None if bag_observation.action == "" else bag_observation.action,
+                  'passed': bag_observation.passed,
+                  'harvested': bag_observation.harvested}
+
+        sql = """
+        INSERT INTO bag_observations(bag_id, observed_at, action, passed, harvested)
+        VALUES ($bag_id, $observed_at, $action, $passed, $harvested)
+        ON CONFLICT (bag_id, observed_at) 
+        DO UPDATE SET action=excluded.action, passed=excluded.passed, harvested=excluded.harvested
+        """
         self.cursor.execute(sql, params)
         self.connection.commit()
 

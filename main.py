@@ -1,5 +1,4 @@
 import os
-import random
 import sqlite3
 import tkinter as tk
 from tkinter import ttk
@@ -104,31 +103,102 @@ class CreatePanel(tk.Frame):
 
     def populate(self):
         for i, (text, command) in enumerate(self.buttons.items()):
-            button = ttk.Button(self.label_frame, text=text, command=command)
-            button.grid(row=i, column=0, padx=5, pady=5)
+            _place_button(self.label_frame, text, command, i, 0, padx=5, pady=5)
 
-    def create_bag(self, *args, **kwargs):
+    def create_bag(self):
+        def write_bag():
+            nonlocal popup
+            try:
+                count = count_var.get()
+                starter = grain_spawn[grain_spawn_name_var.get()]
+                recipe = recipes[recipe_name_var.get()]
+                start = self.database.get_n("bags", created_at_var.get()) + 1
+                for i in range(start, start + count + 1):
+                    bag = Bag(id=i,
+                              created_at=created_at_var.get(),
+                              grain_spawn_id=starter.id,
+                              recipe_id=recipe.id)
+                    self.database.write(bag)
+                bag_str = 'Bag was' if count == 1 else 'Bags were'
+                row_str = 's' if count != 1 else ''
+                msg = f"{bag_str} added to database ({count} row{row_str})."
+                messagebox.showinfo("", msg, parent=popup)
+                popup.destroy()
+
+            except (sqlite3.DatabaseError, sqlite3.IntegrityError) as e:
+                messagebox.showerror("Error", e, parent=popup)
+                raise e
+
+        def update_recipe_panel(var, index, mode):
+            selected = recipe_name_var.get()
+            if recipe := recipes.get(selected):
+                ingredients_panel.config(state=tk.NORMAL)
+                instructions_panel.config(state=tk.NORMAL)
+                ingredients_panel.delete(1.0, tk.END)
+                instructions_panel.delete(1.0, tk.END)
+                ingredients_panel.insert(1.0, recipe.ingredients)
+                instructions_panel.insert(1.0, recipe.instructions)
+                ingredients_panel.config(state=tk.DISABLED)
+                instructions_panel.config(state=tk.DISABLED)
+
+        def update_bag_title(var, index, mode):
+            created_at = created_at_var.get()
+            if created_at:
+                text = self.get_next_grain_spawn_title(created_at)
+                title_label.config(text=text)
+
+        def update_description_labels(var, index, mode):
+            if culture_name := grain_spawn_name_var.get():
+                culture = grain_spawn[culture_name]
+                mushroom_label.config(text=culture.mushroom)
+                variant_label.config(text=culture.variant)
+
         popup = _create_popup(self.parent)
-        popup.wm_title("Create New Bag")
+        popup.title("Add New Bag")
 
-        label_frame = ttk.LabelFrame(popup, text="Create New Bag")
-        label_frame.grid(row=0, column=0)
+        popup.grid_columnconfigure(0, weight=1)
+        popup.grid_columnconfigure(1, weight=3)
 
-        created_at_label = ttk.Label(label_frame, text="Created at:")
-        created_at_label.grid(row=1, column=0)
+        grain_spawn_name_var = tk.StringVar()
+        grain_spawn_name_var.trace_add("write", update_description_labels)
+        recipe_name_var = tk.StringVar()
+        recipe_name_var.trace_add("write", update_recipe_panel)
+        created_at_var = tk.StringVar()
+        created_at_var.trace_add("write", update_bag_title)
+        count_var = tk.IntVar(value=1)
 
-        created_at_var = tk.StringVar(label_frame, value=date.today().strftime("%Y-%m-%d"))
-        created_at_widget = DateEntry(label_frame, date_pattern='y-mm-dd',
-                                      textvariable=created_at_var)
-        created_at_widget.grid(row=1, column=1)
+        control_panel = ttk.Frame(popup)
+        control_panel.grid(row=0, column=0, sticky="nw")
+        recipe_panel = ttk.Frame(popup)
+        recipe_panel.grid(row=0, column=1, sticky="news")
 
-        def foo():
-            popup.destroy()
+        recipes = self.database.get_recipes("Substrate")
+        grain_spawn = self.get_current_experiments("grain_spawn", created_at_var.get())
 
-        b = ttk.Button(popup, text="Okay", command=foo)
-        b.grid(row=2, column=0, columnspan=2)
+        title_label = _place_label(control_panel, "", row=0, column=0, columnspan=2)
+        _place_label(control_panel, "Grain Spawn:", row=1, column=0, sticky="news")
+        _place_selection(control_panel, list(grain_spawn.keys()), grain_spawn_name_var, row=1, column=1, sticky="news")
 
-    def create_grain_spawn(self, *args, **kwargs):
+        mushroom_label = _place_label(control_panel, "Mushroom", row=2, column=0, sticky="news")
+        variant_label = _place_label(control_panel, "Variant", row=2, column=1, sticky="news")
+
+        _place_label(control_panel, "Recipe:", row=3, column=0, sticky="news")
+        _place_selection(control_panel, list(recipes.keys()), recipe_name_var, row=3, column=1, sticky="news")
+
+        _place_label(control_panel, "Created At:", row=4, column=0, sticky="news")
+        created_at_widget = DateEntry(control_panel, date_pattern='y-mm-dd', textvariable=created_at_var)
+        created_at_widget.grid(row=4, column=1, sticky="news")
+
+        _place_label(control_panel, "Amount:", row=5, column=0, sticky="news")
+        _place_counter(control_panel, count_var, row=5, column=1)
+        _place_button(control_panel, "Okay", write_bag, row=6, column=0, columnspan=2)
+
+        _place_label(recipe_panel, "Ingredients", row=0, column=0)
+        ingredients_panel = _place_text(recipe_panel, row=1, column=0, width=70, height=10, disable=True)
+        _place_label(recipe_panel, "Instructions", row=2, column=0)
+        instructions_panel = _place_text(recipe_panel, row=3, column=0, width=70, disable=True)
+
+    def create_grain_spawn(self):
         def write_grain_spawn():
             nonlocal popup
             try:
@@ -143,11 +213,11 @@ class CreatePanel(tk.Frame):
                                              recipe_id=recipe.id)
                     self.database.write(grain_spawn)
                 msg = f"Grain Spawn was added to database ({count} row{'s' if count != 1 else ''})."
-                messagebox.showinfo("", msg)
+                messagebox.showinfo("", msg, parent=popup)
                 popup.destroy()
 
             except (sqlite3.DatabaseError, sqlite3.IntegrityError) as e:
-                messagebox.showerror("Error", e)
+                messagebox.showerror("Error", e, parent=popup)
                 raise e
 
         def update_recipe_panel(var, index, mode):
@@ -173,8 +243,6 @@ class CreatePanel(tk.Frame):
                 culture = cultures[culture_name]
                 mushroom_label.config(text=culture.mushroom)
                 variant_label.config(text=culture.variant)
-
-
 
         popup = _create_popup(self.parent)
         popup.title("Add New Grain Spawn")
@@ -220,7 +288,6 @@ class CreatePanel(tk.Frame):
         _place_label(recipe_panel, "Instructions", row=2, column=0)
         instructions_panel = _place_text(recipe_panel, row=3, column=0, width=70, disable=True)
 
-
     def get_current_experiments(self, experiment_type, observed_at):
         if experiment_type == "cultures":
             return {str(c): c for c in self.database.get_current_cultures(observed_at)}
@@ -246,7 +313,7 @@ class CreatePanel(tk.Frame):
                                  culture_id=-1)
         return str(grain_spawn)
 
-    def create_culture(self, *args, **kwargs):
+    def create_culture(self):
         def write_culture():
             nonlocal popup
             try:
@@ -257,10 +324,10 @@ class CreatePanel(tk.Frame):
                                   mushroom=mushroom_var.get())
 
                 self.database.write(culture)
-                messagebox.showinfo("", "Culture was added to database.")
+                messagebox.showinfo("", "Culture was added to database.", parent=popup)
                 popup.destroy()
             except (sqlite3.DatabaseError, sqlite3.IntegrityError) as e:
-                messagebox.showerror("Error", e)
+                messagebox.showerror("Error", e, parent=popup)
                 raise e
 
         def update_recipe_panel(var, index, mode):
@@ -321,7 +388,7 @@ class CreatePanel(tk.Frame):
         _place_label(recipe_panel, "Instructions", row=2, column=0)
         instructions_panel = _place_text(recipe_panel, row=3, column=0, width=70, disable=True)
 
-    def create_recipe(self, *args, **kwargs):
+    def create_recipe(self):
         def write_recipe():
             nonlocal popup
             name = name_var.get()
@@ -330,14 +397,18 @@ class CreatePanel(tk.Frame):
             instructions = instructions_text.get("0.0", tk.END)
 
             try:
-                recipe = Recipe(name=name, recipe_type=recipe_type, ingredients=ingredients, instructions=instructions)
+                recipe = Recipe(id=None,
+                                name=name,
+                                recipe_type=recipe_type,
+                                ingredients=ingredients,
+                                instructions=instructions)
                 self.database.write(recipe)
-                messagebox.showinfo("", "Recipe was written to Database!")
+                messagebox.showinfo("", "Recipe written to database!", parent=popup)
                 popup.destroy()
             except AssertionError:
-                messagebox.showerror("Error", "Recipe Name, Ingredients or Instructions cannot be empty")
+                messagebox.showerror("Error", "Recipe Name, Ingredients or Instructions cannot be empty", parent=popup)
             except (sqlite3.DatabaseError, sqlite3.IntegrityError) as e:
-                messagebox.showerror("Error", e)
+                messagebox.showerror("Error", e, parent=popup)
                 raise e
 
         popup = _create_popup(self.parent)
@@ -365,6 +436,7 @@ class CreatePanel(tk.Frame):
 class InspectPanel(tk.Frame):
     def __init__(self, parent, title, database, observed_at, width=None):
         super().__init__(parent)
+        # todo: look at this again... try to make widget-canvas resize with window
         self.database = database
         self.entries = []
         self.check_results = []
@@ -381,7 +453,7 @@ class InspectPanel(tk.Frame):
         self.canvas.configure(yscrollcommand=self.vsb.set)
 
         self.vsb.pack(side="right", fill="y")
-        self.canvas.pack(side="right", fill="both", expand=True)
+        self.canvas.pack(fill="both", expand=True)
         self.canvas.create_window((4, 4), window=self.frame, anchor="ne", tags="self.frame")
 
         self.populate()
@@ -417,7 +489,7 @@ class InspectPanel(tk.Frame):
             entry.observed_at = observed_at
 
         self.database.write(self.entries)
-        messagebox.showinfo("", "Observations written to database.")
+        messagebox.showinfo("", "Observations written to database.", parent=self)
 
     def reset(self):
         for action, check in zip(self.actions, self.check_results):
@@ -436,57 +508,46 @@ class InspectPanel(tk.Frame):
 class InspectBagPanel(InspectPanel):
     def __init__(self, parent, title, database, observed_at, width=None):
         super().__init__(parent, title, database, observed_at, width)
+        self.harvested = []
 
-    def initialize_bags(self):
-        out = []
-        for i in range(1, 40):
-            rec = Bag("2023-10-01", i, "OK", "", "Lion's Mane", f"20230901GS0{str(i % 3 + 1).rjust(3, '0')}", None)
-            bag = {"status_var": tk.BooleanVar(self.frame),
-                   "action_var": tk.StringVar(self.frame),
-                   "yield_var": tk.StringVar(self.frame, value=""),
-                   "record": rec}
-            out.append(bag)
-        return out
+    def clear(self):
+        super().clear()
+        self.harvested = []
 
     def populate(self):
-        # todo: implement me! Make use of the Observation subclass
-        pass
-        # self.entries = self.initialize_bags()
-        # columns = ["Bag", "Starter", "Mushroom", "Passed", "Action", "Yield"]
-        # for i, text in enumerate(columns):
-        #     header = ttk.Label(self.frame, text=text)
-        #     header.grid(row=0, column=i)
-        #     self.frame.grid_columnconfigure(i, weight=1)
-#
-        # for i, entry in enumerate(self.entries, 1):
-        #     self._populate_row(entry, i)
 
-    def _populate_row(self, entry, idx):
-        record = entry["record"]
-        _place_label(self.frame, str(record), idx, 0, padx=5)
-        _place_label(self.frame, record.starter, idx, 1, padx=5)
-        _place_label(self.frame, record.mushroom, idx, 2, padx=5)
-        _place_checkbox(self.frame, entry["status_var"], idx, 3, padx=5)
-        _place_selection(self.frame, ["", "Induced Pinning", "Harvested", "Destroyed"], entry["action_var"], idx, 4, padx=5)
-        _place_entry(self.frame, entry["yield_var"], idx, 5, padx=5)
+        self.clear()
+        observed_at = self.observed_at.get()
+        action_values = ['', 'Created', 'Destroyed', 'Used', 'Harvested']
+        self.entries = [BagObservation(g, observed_at, False, "") for g in self.database.get_current_bags(observed_at)]
+        self.check_results = [tk.IntVar(self, value=0) for _ in self.entries]
+        self.actions = [tk.StringVar(value="") for _ in self.entries]
+        self.harvested = [tk.DoubleVar() for _ in self.entries]
 
-    def get_entries(self):
-        out = []
-        for entry in self.entries:
-            record = entry["record"]
-            bag = Bag(record.created_at.strftime("%Y-%m-%d"),
-                      record.id,
-                      "OK" if entry["status_var"].get() else "NOK",
-                      entry["action_var"].get(),
-                      record.starter,
-                      float(entry["yield_var"].get()) if entry["yield_var"].get() else None)
-            out.append(bag)
+        for i, text in enumerate(["Bag", "Mushroom", "Variant", "Created At", "Passed", "Action", "Yield"]):
+            _place_label(self.frame, text=text, row=0, column=i)
 
-    def reset(self):
-        for entry in self.entries:
-            entry["status_var"].set(False)
-            entry["action_var"].set("")
-            entry["yield_var"].set("")
+        for i, _ in enumerate(self.entries):
+            _place_label(self.frame, text=str(self.entries[i].experiment), row=i + 1, column=0, padx=5)
+            _place_label(self.frame, text=self.entries[i].experiment.mushroom, row=i + 1, column=1, padx=5)
+            _place_label(self.frame, text=self.entries[i].experiment.variant, row=i + 1, column=2, padx=5)
+            _place_label(self.frame,
+                         text=self.entries[i].experiment.created_at.strftime("%Y-%m-%d"),
+                         row=i + 1, column=3, padx=5)
+            _place_checkbox(self.frame, self.check_results[i], row=i + 1, column=4, padx=5)
+            _place_selection(self.frame, values=action_values, variable=self.actions[i], row=i + 1, column=5, padx=5)
+            _place_entry(self.frame, variable=self.harvested[i], row=i + 1, column=6, padx=5)
+
+    def confirm(self):
+        observed_at = self.observed_at.get()
+        for entry, check, action, harvested in zip(self.entries, self.check_results, self.actions, self.harvested):
+            entry.passed = check.get()
+            entry.action = action.get()
+            entry.observed_at = observed_at
+            entry.harvested = harvested.get()
+
+        self.database.write(self.entries)
+        messagebox.showinfo("", "Observations written to database.", parent=self)
 
 
 class InspectGrainSpawnPanel(InspectPanel):
@@ -495,22 +556,21 @@ class InspectGrainSpawnPanel(InspectPanel):
 
     def populate(self):
         self.clear()
-        observed_at = self.observed_at.get()
+        obs = self.observed_at.get()
         action_values = ['', 'Created', 'Destroyed', 'Used']
-        self.entries = [GrainSpawnObservation(g, observed_at, False, "") for g in self.database.get_current_grain_spawn(observed_at)]
+        self.entries = [GrainSpawnObservation(g, obs, False, "") for g in self.database.get_current_grain_spawn(obs)]
         self.check_results = [tk.IntVar(self, value=0) for _ in self.entries]
         self.actions = [tk.StringVar(value="") for _ in self.entries]
-
-        cultures = self.database.get_culture_by_id([g.experiment.id for g in self.entries])
 
         for i, text in enumerate(["Grain Spawn", "Mushroom", "Variant", "Created At", "Passed", "Action"]):
             _place_label(self.frame, text=text, row=0, column=i)
 
         for i, _ in enumerate(self.entries):
             _place_label(self.frame, text=str(self.entries[i].experiment), row=i + 1, column=0, padx=5)
-            _place_label(self.frame, text=cultures[self.entries[i].experiment.culture_id].mushroom, row=i + 1, column=1, padx=5)
-            _place_label(self.frame, text=cultures[self.entries[i].experiment.culture_id].variant, row=i + 1, column=2, padx=5)
-            _place_label(self.frame, text=self.entries[i].experiment.created_at.strftime("%Y-%m-%d"), row=i + 1, column=3, padx=5)
+            _place_label(self.frame, text=self.entries[i].experiment.mushroom, row=i + 1, column=1, padx=5)
+            _place_label(self.frame, text=self.entries[i].experiment.variant, row=i + 1, column=2, padx=5)
+            _place_label(self.frame, text=self.entries[i].experiment.created_at.strftime("%Y-%m-%d"),
+                         row=i + 1, column=3, padx=5)
             _place_checkbox(self.frame, self.check_results[i], row=i + 1, column=4, padx=5)
             _place_selection(self.frame, values=action_values, variable=self.actions[i], row=i + 1, column=5, padx=5)
 
@@ -521,9 +581,9 @@ class InspectCulturePanel(InspectPanel):
 
     def populate(self):
         self.clear()
-        observed_at = self.observed_at.get()
+        obs = self.observed_at.get()
         action_values = ['', 'Created', 'Destroyed']
-        self.entries = [CultureObservation(c, observed_at, True, "") for c in self.database.get_current_cultures(observed_at)]
+        self.entries = [CultureObservation(c, obs, True, "") for c in self.database.get_current_cultures(obs)]
         self.check_results = [tk.IntVar(self, value=1) for _ in self.entries]
         self.actions = [tk.StringVar(value="") for _ in self.entries]
 
@@ -548,9 +608,12 @@ class LabTab(tk.Frame):
         create_panel = CreatePanel(self, database, observed_at)
         self.notebook = ttk.Notebook(self)
 
-        self.inspect_bag_panel = InspectBagPanel(self.notebook, "Inspect Bags", database, observed_at, width=700)
-        self.inspect_grain_spawn_panel = InspectGrainSpawnPanel(self.notebook, "Inspect Grain Spawn", database, observed_at, width=700)
-        self.inspect_culture_panel = InspectCulturePanel(self.notebook, "Inspect Cultures", database, observed_at, width=700)
+        self.inspect_bag_panel = InspectBagPanel(self.notebook,
+                                                 "Inspect Bags", database, observed_at, width=700)
+        self.inspect_grain_spawn_panel = InspectGrainSpawnPanel(self.notebook,
+                                                                "Inspect Grain Spawn", database, observed_at, width=700)
+        self.inspect_culture_panel = InspectCulturePanel(self.notebook,
+                                                         "Inspect Cultures", database, observed_at, width=700)
 
         for tab, lab in zip([self.inspect_bag_panel, self.inspect_grain_spawn_panel, self.inspect_culture_panel],
                             ["Bags", "Grain Spawn", "Cultures"]):
@@ -561,14 +624,14 @@ class LabTab(tk.Frame):
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=6)
+        for i in range(1, 3):
+            self.grid_rowconfigure(i, weight=1)
         observed_at.trace_add("write", self.update_contents)
 
     def update_contents(self, var, index, mode):
-        print("updating")
         self.inspect_culture_panel.populate()
         self.inspect_grain_spawn_panel.populate()
         self.inspect_bag_panel.populate()
-
 
 
 class FinanceTab(tk.Frame):
@@ -606,7 +669,6 @@ class App(tk.Tk):
 
         notebook.pack(expand=True, fill='both')
 
-
     def _set_style(self):
         self.style = ttk.Style(self)
         # Import the tcl file
@@ -617,5 +679,4 @@ class App(tk.Tk):
 
 if __name__ == "__main__":
     app = App()
-    # app.state("zoomed")
     app.mainloop()

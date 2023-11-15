@@ -35,6 +35,8 @@ class Culture(Experiment):
 class Bag(Experiment):
     grain_spawn_id: int
     recipe_id: int
+    mushroom: str = None
+    variant: str = None
 
     def __post_init__(self):
         super().__post_init__()
@@ -47,6 +49,8 @@ class Bag(Experiment):
 class GrainSpawn(Experiment):
     culture_id: int
     recipe_id: int
+    mushroom: str = None
+    variant: str = None
 
     def __post_init__(self):
         super().__post_init__()
@@ -57,7 +61,7 @@ class GrainSpawn(Experiment):
 
 @dataclass
 class Recipe:
-    id: int
+    id: (int, None)
     name: str
     recipe_type: str
     ingredients: str
@@ -101,6 +105,7 @@ class GrainSpawnObservation(Observation):
 
 @dataclass
 class BagObservation(Observation):
+    harvested: float = None
 
     def __post_init__(self):
         super().__post_init__()
