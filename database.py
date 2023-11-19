@@ -79,7 +79,7 @@ class Database:
         CREATE TABLE IF NOT EXISTS grain_spawn_observations(
             grain_spawn_id INTEGER,
             observed_at DATETIME DEFAULT (current_date),
-            action TEXT CHECK ( action in ('Created', 'Used', 'Destroyed') OR action IS NULL ),
+            action TEXT CHECK ( action in ('Created', 'Inoculated', 'Shaken', 'Used', 'Destroyed') OR action IS NULL ),
             passed INTEGER NOT NULL CHECK ( passed in (0, 1) ),
             FOREIGN KEY (grain_spawn_id) REFERENCES grain_spawn(grain_spawn_id),
             PRIMARY KEY (grain_spawn_id, observed_at));
@@ -87,7 +87,7 @@ class Database:
         CREATE TABLE IF NOT EXISTS bag_observations(
             bag_id INTEGER,
             observed_at DATETIME DEFAULT (current_date),
-            action TEXT CHECK ( action in ('Created', 'Harvested', 'Destroyed') OR action IS NULL ),
+            action TEXT CHECK ( action in ('Created', 'Kneaded', 'Harvested', 'Destroyed') OR action IS NULL ),
             passed INTEGER NOT NULL CHECK ( passed in (0, 1) ),
             harvested FLOAT,
             FOREIGN KEY (bag_id) REFERENCES bags(bag_id),
@@ -189,7 +189,7 @@ class Database:
             WHERE NOT EXISTS(SELECT 1
                              FROM grain_spawn_observations obs
                              WHERE obs.grain_spawn_id = gra.grain_spawn_id
-                               AND (obs.action in ('Destroyed', 'Used') AND obs.observed_at <= $date))
+                               AND (obs.action in ('Destroyed', 'Used') AND obs.observed_at < $date))
               AND gra.created_at <= $date),
         
         grain_spawn_info AS (
@@ -209,6 +209,7 @@ class Database:
         FROM current_grain_spawn
         LEFT JOIN grain_spawn_info USING (culture_id)                     
         """
+        print(sql)
         out = [GrainSpawn(*g) for g in self.cursor.execute(sql, {"date": date})]
         return out
 
@@ -225,7 +226,7 @@ class Database:
                          FROM culture_observations obs
                          WHERE obs.culture_id = cul.culture_id
                            AND obs.action = 'Destroyed'
-                           AND (obs.observed_at <= $date AND cul.created_at >= $date))
+                           AND (obs.observed_at < $date AND cul.created_at >= $date))
         """
         out = [Culture(*c) for c in self.cursor.execute(sql, {"date": date})]
         return out
@@ -351,6 +352,106 @@ class Database:
         WHERE culture_id in ({','.join(['?'] * len(ids))})"""
 
         return {c[1]: Culture(*c) for c in self.cursor.execute(sql, ids)}
+
+    def get_actions(self):
+        sql = """
+        WITH
+        
+        bag_actions AS (
+            SELECT
+                date(created_at) as date,
+                'Created' AS action,
+                'Bags Created' AS event,
+                count(*) AS n_events
+            FROM bags
+            WHERE event IS NOT NULL
+            GROUP BY 1, 2, 3
+        ),
+        
+        bag_observation_actions AS (
+            SELECT
+                date(observed_at) as date,
+                action,
+                'Bags ' || action as event,
+                count(*) AS n_events
+            FROM bag_observations
+            WHERE event IS NOT NULL
+            GROUP BY 1, 2, 3
+        ),
+        
+        grain_spawn_actions AS (
+            SELECT
+                date(created_at) as date,
+                'Created' AS action,
+                'Grain Spawn Created' AS event,
+                count(*) AS n_events
+            FROM grain_spawn
+            WHERE event IS NOT NULL
+            GROUP BY 1, 2, 3
+        ),
+        
+        grain_spawn_observation_actions AS (
+            SELECT
+                date(observed_at) as date,
+                action,
+                'Grain Spawn ' || action as event,
+                count(*)
+            FROM grain_spawn_observations
+            WHERE event IS NOT NULL
+            GROUP BY 1, 2, 3
+        ),
+        
+        culture_actions AS (
+            SELECT
+                date(created_at) AS date,
+                'Created' AS action,
+                'Cultures Created' AS event,
+                count(*) AS n_events
+            FROM cultures
+            WHERE event IS NOT NULL
+            GROUP BY 1, 2, 3
+        ),
+        
+        culture_observation_actions AS (
+            SELECT
+                date(observed_at) AS date,
+                action,
+                'Culture ' || action AS event,
+                count(*) as n_events
+            FROM culture_observations
+            WHERE event IS NOT NULL
+            GROUP BY 1, 2, 3
+        )
+        
+        SELECT 
+            date,
+            action,
+            event,
+            n_events
+        FROM (
+            SELECT * FROM bag_actions UNION ALL
+            SELECT * FROM bag_observation_actions UNION ALL
+            SELECT * FROM grain_spawn_actions UNION ALL
+            SELECT * FROM grain_spawn_observation_actions UNION ALL
+            SELECT * FROM culture_actions UNION ALL
+            SELECT * FROM culture_observation_actions)
+        ORDER BY "date", CASE action 
+            WHEN 'Created' THEN 0              
+            WHEN 'Shaken' THEN 1
+            WHEN 'Used' THEN 2
+            WHEN 'Kneaded' THEN 3 
+            WHEN 'Harvested' THEN 4
+            WHEN 'Destroyed' THEN 5 END
+        """
+        return [(date, f"{n_events} {event}", action) for (date, action, event, n_events) in self.cursor.execute(sql)]
+
+    def drop_tables(self):
+        tables = ("bag_observations", "grain_spawn_observations", "culture_observations",
+                  "bags", "grain_spawn", "cultures",  "recipes")
+        for table in tables:
+            sql = f"DROP {table}"
+            self.cursor.execute(sql)
+            self.connection.commit()
 
 
 if __name__ == "__main__":
