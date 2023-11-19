@@ -103,8 +103,6 @@ class Database:
         self.__initialize_grain_spawn_table()
         self.__initialize_bag_table()
         self.__initialize_action_tables()
-
-
         # todo: extend me with financial and bi-tables
 
     def get_unique(self, column, table):
@@ -437,10 +435,10 @@ class Database:
             SELECT * FROM culture_observation_actions)
         ORDER BY "date", CASE action 
             WHEN 'Created' THEN 0              
-            WHEN 'Shaken' THEN 1
+            WHEN 'Harvested' THEN 1
             WHEN 'Used' THEN 2
             WHEN 'Kneaded' THEN 3 
-            WHEN 'Harvested' THEN 4
+            WHEN 'Shaken' THEN 4
             WHEN 'Destroyed' THEN 5 END
         """
         return [(date, f"{n_events} {event}", action) for (date, action, event, n_events) in self.cursor.execute(sql)]

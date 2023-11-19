@@ -675,6 +675,7 @@ class HistoryTab(tk.Frame):
         self.calendar = tkcalendar.Calendar(self)
         self.calendar.grid(row=0, column=0, sticky="news")
         self.calendar.tag_config('Destroyed', background="red")
+        self.calendar.tag_config('Harvested', background="green")
 
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
